@@ -4,7 +4,7 @@
 
 Project Start Date: 2026-09-15
 Last Update Project: 2026-09-15
-Project Phase: Initial development (v2.1.2)
+Project Phase: Initial development (v2.1.3)
 Project Status: Active
 
 ---
@@ -270,8 +270,9 @@ the preferred path going forward.
 - Four tools registered and verified: `curl`, `python`, `shell`, `authorize`.
 - Both transports verified: stdio runs; http serves streamable HTTP at `/mcp`.
 - README documents install, run modes, MCP client config, env vars, and usage.
-- Latest version **2.1.2 published to PyPI**:
-  https://pypi.org/project/dryhack-mcp/2.1.2/ (installable via
+- Latest version **2.1.3 published to PyPI** (no-op version bump, no code
+  changes vs 2.1.2 — requested directly by the operator):
+  https://pypi.org/project/dryhack-mcp/2.1.3/ (installable via
   `pip install dryhack-mcp`, or run without installing via `uvx dryhack-mcp`).
   History: v0.1.1 removed the safeguard-API integration/`UNRESTRICTED`/`httpx`;
   v0.1.2 renamed `recommend_action` -> `authorize`; v0.1.3 documented `uvx`;
