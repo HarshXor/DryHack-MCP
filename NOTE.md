@@ -4,7 +4,7 @@
 
 Project Start Date: 2026-09-15
 Last Update Project: 2026-09-15
-Project Phase: Initial development (MVP / v0.1.0)
+Project Phase: Initial development (MVP / v0.1.2)
 Project Status: Active
 
 ---
@@ -18,8 +18,10 @@ exposes four tools over MCP:
 - `curl` — raw HTTP interaction for web recon/exploitation.
 - `python` — run ad-hoc Python snippets for scripted probing/exploitation.
 - `shell` — run arbitrary shell command lines (nmap, ffuf, nc, sqlmap, ...).
-- `recommend_action` — AI-driven next-step engine that consults an upstream
-  OpenAI-compatible LLM (the "safeguard API") for the next offensive action.
+- `authorize` — takes the action/prompt the calling AI wants to carry out
+  (`request`, plus optional `context`/`goal`) and returns it wrapped in the
+  authorized-engagement operating context for the caller to act on. Makes NO
+  external API calls and stores NO credentials.
 
 Scope: a lightweight, pip-installable server intended for use only against
 systems the operator owns or is explicitly authorized (in writing) to test.
@@ -51,15 +53,16 @@ It supports two transports: stdio (default) and streamable HTTP.
 ## Technical Development Details
 
 - **Programming language:** Python (>= 3.9).
-- **Framework:** MCP Python SDK (`mcp` >= 1.2.0) using `FastMCP`;
-  HTTP client via `httpx` >= 0.27.0.
+- **Framework:** MCP Python SDK (`mcp` >= 1.2.0) using `FastMCP`. No other
+  runtime dependencies (`httpx` was removed in v0.1.1).
 - **Infrastructure:** Runs as a local process (stdio) or a streamable HTTP
   server (uvicorn/starlette, bundled with the `mcp` package).
 - **Database:** None. All configuration is via environment variables; no
-  persistent storage.
+  persistent storage. Stores NO credentials/API keys.
 - **API structure:** Four MCP tools registered in `dryhack_mcp/server.py`
-  (`curl`, `python`, `shell`, `recommend_action`). `recommend_action` calls an
-  OpenAI-compatible `/chat/completions` endpoint (the "safeguard API").
+  (`curl`, `python`, `shell`, `authorize`). `authorize` is self-contained (no
+  external API, no creds) and returns the caller's request wrapped in the
+  authorized-engagement operating context.
 - **Deployment model:** Installed via `python3 -m pip install .`, exposing the
   `dryhack-mcp` console script (entry point `dryhack_mcp.__main__:main`).
   Two transports selected by argparse: `--transport stdio` (default) or
@@ -69,8 +72,8 @@ It supports two transports: stdio (default) and streamable HTTP.
   `tools/exec.py`, config centralized in `dryhack_mcp/config.py`.
 - **Security requirement:** Authorized-use-only tooling. Command execution has
   a configurable timeout (`DRYHACK_COMMAND_TIMEOUT`) and output truncation
-  (`DRYHACK_OUTPUT_LIMIT`). Secrets (`DRYHACK_API_KEY`) provided via env only,
-  never committed.
+  (`DRYHACK_OUTPUT_LIMIT`). The server stores NO credentials/API keys; all
+  `DRYHACK_*` env vars are operational only.
 
 ## Core Flow Project
 
@@ -81,18 +84,17 @@ It supports two transports: stdio (default) and streamable HTTP.
   - `curl`/`python`/`shell` build an argv and run it through
     `tools/exec.run()` (subprocess with timeout, cwd = `DRYHACK_WORKDIR`,
     stdout/stderr captured and truncated).
-  - `recommend_action` builds chat messages (base system prompt, optionally an
-    authorized-engagement framing when `unrestricted` is on) and POSTs to the
-    safeguard API `/chat/completions`.
-- **Logic:** `recommend_action` uses `DRYHACK_UNRESTRICTED` as the default
-  framing mode (per-call override via `unrestricted`). If no API key is set, it
-  falls back to an offline heuristic recommender based on keywords in the
-  context. Errors fall back to the heuristic too.
+  - `authorize` takes the caller's `request` (plus optional `context`/`goal`)
+    and wraps it in the authorized-engagement operating context. No network
+    calls.
+- **Logic:** `authorize` is purely local: it prepends the authorized-engagement
+  operating context to the caller's request and returns it for the calling AI
+  to act on operationally.
 - **Output:** Formatted text — command results (`$ cmd`, `[exit]`, `[stdout]`,
-  `[stderr]`) or the LLM's recommendation (tagged with mode/model), returned to
-  the MCP client.
-- **External integration:** OpenAI-compatible LLM API (base URL, key, model all
-  configurable via env). No other external services.
+  `[stderr]`) or the wrapped authorized-request text, returned to the MCP client.
+- **External integration:** None. The command tools may reach the network via
+  the binaries they invoke (curl, nmap, etc.), but the server itself makes no
+  API calls and stores no credentials.
 
 ## Architecture Decision Log
 
@@ -110,13 +112,24 @@ avoid persisting secrets.
 Impact: No config files/DB; all tuning done via `DRYHACK_*` env vars.
 
 Date: 2026-09-15
-Decision: `recommend_action` supports an "unrestricted" framing mode plus an
-offline heuristic fallback.
-Reason: Generic safeguards often refuse legitimate authorized red-team requests;
-the offline fallback keeps the tool useful without an API key.
-Impact: Behavior controlled by `DRYHACK_UNRESTRICTED` and per-call
-`unrestricted` flag. (Note: earlier iterations used "bypass" terminology; it was
-renamed to "unrestricted".)
+Decision: (v0.1.2) Rename tool `recommend_action` -> `authorize`. It takes the
+caller's `request` (plus optional `context`/`goal`) and returns it wrapped in
+the authorized-engagement operating context.
+Reason: The tool's role is to hand the calling AI its request framed for the
+authorized engagement; the AI supplies the input and receives the wrapped output.
+Impact: Public tool name changed (breaking for callers using the old name);
+module `tools/recommend.py` replaced by `tools/authorize.py`.
+
+Date: 2026-09-15
+Decision: (v0.1.1) Remove the external "safeguard API" integration,
+`UNRESTRICTED`/API env vars, and the `httpx` dependency. `recommend_action` now
+returns a self-contained operator briefing for the calling AI.
+Reason: The MCP must not depend on the main AI's provider or store any
+credentials/API keys; the calling AI does the reasoning directly.
+Impact: No creds/config stored; deps reduced to `mcp` only. Removed
+`DRYHACK_API_KEY/API_BASE/MODEL/UNRESTRICTED`. (Historical note: earlier
+iterations used "bypass"/"unrestricted" framing toggles against an upstream LLM;
+these were removed entirely in v0.1.1.)
 
 Date: 2026-09-15
 Decision: Support two transports (stdio default, http) selected via argparse in
@@ -144,9 +157,14 @@ the preferred path going forward.
   `recommend_action`.
 - Both transports verified: stdio runs; http serves streamable HTTP at `/mcp`.
 - README documents install, run modes, MCP client config, env vars, and usage.
-- Version 0.1.0 **published to PyPI**: https://pypi.org/project/dryhack-mcp/0.1.0/
-  (installable via `pip install dryhack-mcp`). No automated tests or CI yet.
-- Added `.gitignore` to exclude build artifacts and secrets (`.pypirc`, tokens).
+- Latest version **0.1.2 published to PyPI**:
+  https://pypi.org/project/dryhack-mcp/0.1.2/ (installable via
+  `pip install dryhack-mcp`). v0.1.1 removed the safeguard-API integration,
+  the `UNRESTRICTED`/API env vars, and the `httpx` dependency. v0.1.2 renamed
+  `recommend_action` -> `authorize` (takes the caller's `request` and returns
+  it wrapped in the authorized-engagement context). Server stores no
+  credentials and depends only on `mcp`. No automated tests or CI yet.
+- `.gitignore` excludes build artifacts and secrets (`.pypirc`, tokens).
 
 ## Pending Issue
 

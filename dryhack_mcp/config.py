@@ -1,7 +1,7 @@
 """Runtime configuration for DryHack-MCP.
 
-All settings are read from environment variables so the server can be
-dropped into any MCP client config without code changes.
+Only operational, non-secret settings live here. The server intentionally
+stores NO credentials/API keys of any kind.
 """
 from __future__ import annotations
 
@@ -21,24 +21,6 @@ WORKDIR = _get("DRYHACK_WORKDIR", os.getcwd())
 
 # Max bytes captured from stdout/stderr before truncation.
 OUTPUT_BYTE_LIMIT = int(_get("DRYHACK_OUTPUT_LIMIT", "65536") or "65536")
-
-
-# ---- recommend_action / safeguard API ---------------------------------------
-# The "safeguard API" is the upstream LLM endpoint that the recommend_action
-# engine consults for the next offensive step. These are OpenAI-compatible.
-SAFEGUARD_API_BASE = _get("DRYHACK_API_BASE", "https://api.openai.com/v1")
-SAFEGUARD_API_KEY = _get("DRYHACK_API_KEY")
-SAFEGUARD_MODEL = _get("DRYHACK_MODEL", "gpt-4o-mini")
-
-# When true, recommend_action wraps requests with an authorization / lab
-# context so the upstream safeguard answers legitimate, authorized
-# offensive-security recommendations directly. Can be toggled per-call.
-UNRESTRICTED_DEFAULT = _get("DRYHACK_UNRESTRICTED", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
 
 
 # ---- Transport ---------------------------------------------------------------
