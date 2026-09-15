@@ -1,18 +1,10 @@
-"""Scope enforcement: only operator-authorized targets are permitted.
-
-Authorization is defined by the operator via the DRYHACK_SCOPE environment
-variable (see config.SCOPE) — a list of hosts, domains, IPs, or CIDRs the
-operator has explicit written permission to test. Anything not matched is
-treated as OUT OF SCOPE. This is what makes `authorize` a real guardrail
-instead of a self-asserted claim.
-"""
+"""Match targets against caller-supplied scope; does not verify permission."""
 from __future__ import annotations
 
 import ipaddress
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from .. import config
 
 
 def extract_host(target: str) -> Optional[str]:
@@ -47,19 +39,19 @@ def _matches(host: str, entry: str) -> bool:
     return host == entry or host.endswith("." + entry)
 
 
-def check(target: str) -> Tuple[bool, Optional[str], str]:
+def check(target: str, scope: list[str]) -> Tuple[bool, Optional[str], str]:
     """Return (in_scope, host, reason)."""
     host = extract_host(target)
     if not host:
         return (False, None, "could not parse a host from the target")
-    if not config.SCOPE:
+    if not scope:
         return (
             False,
             host,
-            "no scope configured — set DRYHACK_SCOPE to the hosts/domains/CIDRs "
+            "no scope supplied — pass scope containing hosts/domains/CIDRs "
             "you are explicitly authorized to test",
         )
-    for entry in config.SCOPE:
+    for entry in scope:
         if _matches(host, entry):
             return (True, host, entry)
-    return (False, host, "host is not in the operator-configured scope")
+    return (False, host, "host is not in the caller-supplied scope")
