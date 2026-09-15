@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+try:
+    # mcp 1.x
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:  # pragma: no cover - mcp 2.x fallback
+    # mcp 2.x renamed FastMCP -> MCPServer
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 from . import config
 from .tools.curl_tool import curl as _curl

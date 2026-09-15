@@ -4,7 +4,7 @@
 
 Project Start Date: 2026-09-15
 Last Update Project: 2026-09-15
-Project Phase: Initial development (MVP / v0.1.2)
+Project Phase: Initial development (v2.0.0)
 Project Status: Active
 
 ---
@@ -53,8 +53,10 @@ It supports two transports: stdio (default) and streamable HTTP.
 ## Technical Development Details
 
 - **Programming language:** Python (>= 3.9).
-- **Framework:** MCP Python SDK (`mcp` >= 1.2.0) using `FastMCP`. No other
-  runtime dependencies (`httpx` was removed in v0.1.1).
+- **Framework:** MCP Python SDK, pinned `mcp>=1.2.0,<2`, using `FastMCP`
+  (mcp 2.x renamed it to `MCPServer` and changed APIs, so v1 is pinned; the
+  import in `server.py` also falls back to `MCPServer` if 2.x is ever forced).
+  No other runtime dependencies (`httpx` was removed in v0.1.1).
 - **Infrastructure:** Runs as a local process (stdio) or a streamable HTTP
   server (uvicorn/starlette, bundled with the `mcp` package).
 - **Database:** None. All configuration is via environment variables; no
@@ -112,6 +114,16 @@ avoid persisting secrets.
 Impact: No config files/DB; all tuning done via `DRYHACK_*` env vars.
 
 Date: 2026-09-15
+Decision: (v2.0.0) Pin `mcp>=1.2.0,<2` and add a `FastMCP`/`MCPServer` import
+fallback in `server.py`.
+Reason: mcp 2.x renamed `FastMCP` -> `MCPServer` and removed
+`mcp.server.fastmcp`, so `uvx`/pip resolving mcp 2.x crashed the server with
+`ModuleNotFoundError: No module named 'mcp.server.fastmcp'`.
+Impact: Server runs reliably again on the v1 API; major version bumped to 2.0.0.
+Verified via `uvx --refresh dryhack-mcp@2.0.0 --help`. Future work: migrate to
+the mcp 2.x `MCPServer` API to relax the `<2` pin.
+
+Date: 2026-09-15
 Decision: (v0.1.2) Rename tool `recommend_action` -> `authorize`. It takes the
 caller's `request` (plus optional `context`/`goal`) and returns it wrapped in
 the authorized-engagement operating context.
@@ -157,13 +169,14 @@ the preferred path going forward.
   `recommend_action`.
 - Both transports verified: stdio runs; http serves streamable HTTP at `/mcp`.
 - README documents install, run modes, MCP client config, env vars, and usage.
-- Latest version **0.1.2 published to PyPI**:
-  https://pypi.org/project/dryhack-mcp/0.1.2/ (installable via
-  `pip install dryhack-mcp`). v0.1.1 removed the safeguard-API integration,
-  the `UNRESTRICTED`/API env vars, and the `httpx` dependency. v0.1.2 renamed
-  `recommend_action` -> `authorize` (takes the caller's `request` and returns
-  it wrapped in the authorized-engagement context). Server stores no
-  credentials and depends only on `mcp`. No automated tests or CI yet.
+- Latest version **2.0.0 published to PyPI**:
+  https://pypi.org/project/dryhack-mcp/2.0.0/ (installable via
+  `pip install dryhack-mcp`, or run without installing via `uvx dryhack-mcp`).
+  History: v0.1.1 removed the safeguard-API integration/`UNRESTRICTED`/`httpx`;
+  v0.1.2 renamed `recommend_action` -> `authorize`; v0.1.3 documented `uvx`;
+  v2.0.0 pinned `mcp<2` to fix a `ModuleNotFoundError: mcp.server.fastmcp`
+  crash when uv resolved mcp 2.x (FastMCP was renamed to MCPServer in 2.x).
+  Server stores no credentials and depends only on `mcp`. No tests/CI yet.
 - `.gitignore` excludes build artifacts and secrets (`.pypirc`, tokens).
 
 ## Pending Issue

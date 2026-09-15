@@ -21,6 +21,19 @@ python3 -m pip install .
 
 This installs the `dryhack-mcp` console script (the MCP server).
 
+### Run without installing (uvx)
+
+With [uv](https://docs.astral.sh/uv/) you can run the server directly from PyPI
+— no manual install needed:
+
+```bash
+uvx dryhack-mcp
+# http transport
+uvx dryhack-mcp --transport http --host 0.0.0.0 --port 8000
+# pin a version
+uvx dryhack-mcp@0.1.3
+```
+
 For development:
 
 ```bash
@@ -64,6 +77,22 @@ CLI options:
   "mcpServers": {
     "dryhack": {
       "command": "dryhack-mcp",
+      "env": {
+        "DRYHACK_COMMAND_TIMEOUT": "120"
+      }
+    }
+  }
+}
+```
+
+### stdio via uvx (no install)
+
+```json
+{
+  "mcpServers": {
+    "dryhack": {
+      "command": "uvx",
+      "args": ["dryhack-mcp"],
       "env": {
         "DRYHACK_COMMAND_TIMEOUT": "120"
       }
