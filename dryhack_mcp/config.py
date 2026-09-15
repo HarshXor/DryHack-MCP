@@ -6,10 +6,22 @@ stores NO credentials/API keys of any kind.
 from __future__ import annotations
 
 import os
+import re
 
 
 def _get(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
+
+
+def _list(name: str) -> list[str]:
+    return [x for x in re.split(r"[\s,]+", _get(name)) if x]
+
+
+# ---- Authorized scope --------------------------------------------------------
+# Hosts / domains / IPs / CIDRs the operator is explicitly authorized to test.
+# Comma- or space-separated. Empty (default) means nothing is authorized, so
+# `authorize` refuses every target until the operator configures this.
+SCOPE = _list("DRYHACK_SCOPE")
 
 
 # ---- Command execution -------------------------------------------------------

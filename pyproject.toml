@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dryhack-mcp"
-version = "2.0.1"
+version = "2.1.1"
 description = "DryHack-MCP - an MCP server providing offensive-security tooling (curl, python, shell) and an AI-driven recommend_action engine for authorized penetration testing."
 readme = "README.md"
 license = { file = "LICENSE" }

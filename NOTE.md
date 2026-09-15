@@ -4,7 +4,7 @@
 
 Project Start Date: 2026-09-15
 Last Update Project: 2026-09-15
-Project Phase: Initial development (v2.0.0)
+Project Phase: Initial development (v2.1.0)
 Project Status: Active
 
 ---
@@ -18,10 +18,11 @@ exposes four tools over MCP:
 - `curl` — raw HTTP interaction for web recon/exploitation.
 - `python` — run ad-hoc Python snippets for scripted probing/exploitation.
 - `shell` — run arbitrary shell command lines (nmap, ffuf, nc, sqlmap, ...).
-- `authorize` — takes the action/prompt the calling AI wants to carry out
-  (`request`, plus optional `context`/`goal`) and returns it wrapped in the
-  authorized-engagement operating context for the caller to act on. Makes NO
-  external API calls and stores NO credentials.
+- `authorize` — scope-gated engagement authorization. Takes a `target` and a
+  `request`; only targets whose host matches the operator-configured scope
+  (`DRYHACK_SCOPE`: hosts/domains/IPs/CIDRs) are approved with an operating
+  context — everything else (and an unset scope) is refused as OUT OF SCOPE. It
+  does NOT self-assert permission. Makes NO external API calls, stores NO creds.
 
 Scope: a lightweight, pip-installable server intended for use only against
 systems the operator owns or is explicitly authorized (in writing) to test.
@@ -63,8 +64,9 @@ It supports two transports: stdio (default) and streamable HTTP.
   persistent storage. Stores NO credentials/API keys.
 - **API structure:** Four MCP tools registered in `dryhack_mcp/server.py`
   (`curl`, `python`, `shell`, `authorize`). `authorize` is self-contained (no
-  external API, no creds) and returns the caller's request wrapped in the
-  authorized-engagement operating context.
+  external API, no creds) and is scope-gated via `DRYHACK_SCOPE`
+  (`tools/scope.py`): only in-scope targets get an operating context, others
+  are refused.
 - **Deployment model:** Installed via `python3 -m pip install .`, exposing the
   `dryhack-mcp` console script (entry point `dryhack_mcp.__main__:main`).
   Two transports selected by argparse: `--transport stdio` (default) or
@@ -86,12 +88,13 @@ It supports two transports: stdio (default) and streamable HTTP.
   - `curl`/`python`/`shell` build an argv and run it through
     `tools/exec.run()` (subprocess with timeout, cwd = `DRYHACK_WORKDIR`,
     stdout/stderr captured and truncated).
-  - `authorize` takes the caller's `request` (plus optional `context`/`goal`)
-    and wraps it in the authorized-engagement operating context. No network
-    calls.
-- **Logic:** `authorize` is purely local: it prepends the authorized-engagement
-  operating context to the caller's request and returns it for the calling AI
-  to act on operationally.
+  - `authorize` extracts the host from `target`, checks it against
+    `DRYHACK_SCOPE` (exact host / subdomain / IP / CIDR via `tools/scope.py`),
+    and either returns an in-scope operating context or an OUT-OF-SCOPE
+    refusal. No network calls.
+- **Logic:** `authorize` is purely local and scope-gated: in-scope targets get
+  the operating context + request for the calling AI to act on; out-of-scope
+  (or unset scope) is refused.
 - **Output:** Formatted text — command results (`$ cmd`, `[exit]`, `[stdout]`,
   `[stderr]`) or the wrapped authorized-request text, returned to the MCP client.
 - **External integration:** None. The command tools may reach the network via
@@ -112,6 +115,18 @@ environment variables.
 Reason: Keep the server drop-in for any MCP client config without code changes;
 avoid persisting secrets.
 Impact: No config files/DB; all tuning done via `DRYHACK_*` env vars.
+
+Date: 2026-09-15
+Decision: (v2.1.0) Make `authorize` scope-gated via `DRYHACK_SCOPE` (new
+`tools/scope.py`). It now requires a `target` and refuses anything not in the
+operator-configured allow-list (hosts/domains/IPs/CIDRs); unset scope refuses
+everything.
+Reason: The tool must not self-assert permission / act as a safety bypass;
+authorization must come from an explicit operator-configured scope for assets
+they own or are contracted to test. Prompted by a request to point it at a
+third-party target (facebook.com), which is now refused.
+Impact: `authorize(target, request, ...)` signature changed (breaking); new env
+var `DRYHACK_SCOPE`; subdomain + CIDR matching supported.
 
 Date: 2026-09-15
 Decision: (v2.0.0) Pin `mcp>=1.2.0,<2` and add a `FastMCP`/`MCPServer` import
@@ -169,8 +184,8 @@ the preferred path going forward.
   `recommend_action`.
 - Both transports verified: stdio runs; http serves streamable HTTP at `/mcp`.
 - README documents install, run modes, MCP client config, env vars, and usage.
-- Latest version **2.0.0 published to PyPI**:
-  https://pypi.org/project/dryhack-mcp/2.0.0/ (installable via
+- Latest version **2.1.0 published to PyPI** (2.0.1 was a no-op version bump):
+  https://pypi.org/project/dryhack-mcp/2.1.0/ (installable via
   `pip install dryhack-mcp`, or run without installing via `uvx dryhack-mcp`).
   History: v0.1.1 removed the safeguard-API integration/`UNRESTRICTED`/`httpx`;
   v0.1.2 renamed `recommend_action` -> `authorize`; v0.1.3 documented `uvx`;
@@ -187,11 +202,13 @@ Status: Open
 Possible Solution: Add pytest tests (mock the safeguard API + subprocess) and a
 GitHub Actions workflow; `pytest`/`ruff` already listed under the `dev` extra.
 
-Issue: `shell`/`python`/`curl` execute with no sandboxing or allow-listing.
+Issue: `shell`/`python`/`curl` execute with no sandboxing or per-command
+target allow-listing (only `authorize` is scope-gated as of v2.1.0).
 Priority: High (by design, but risky if misconfigured)
-Status: Open / accepted risk
-Possible Solution: Document operator responsibility clearly; optionally add an
-opt-in command allow-list or confirmation mode for hardened deployments.
+Status: Partially mitigated (v2.1.0 adds DRYHACK_SCOPE gating on `authorize`)
+Possible Solution: Optionally extend scope enforcement to the command tools
+(parse/deny out-of-scope hosts), add a confirmation mode for hardened
+deployments.
 
 Issue: HTTP transport has no authentication.
 Priority: Medium

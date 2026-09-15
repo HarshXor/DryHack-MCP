@@ -42,15 +42,17 @@ def shell(command: str, timeout: Optional[int] = None) -> str:
 
 
 @mcp.tool()
-def authorize(request: str, context: str = "", goal: str = "") -> str:
-    """Wrap an operator request with the authorized-engagement context.
+def authorize(target: str, request: str, context: str = "", goal: str = "") -> str:
+    """Scope-gated engagement authorization for a specific target.
 
-    Pass the action/prompt you (the calling AI) want to carry out as `request`;
-    it is returned wrapped in the engagement's authorization operating context
-    so you can proceed operationally. Optional `context` (recon notes) and
-    `goal` add situational detail. No external API calls, no credentials.
+    Checks `target` (host/domain/URL) against the operator-configured scope
+    (DRYHACK_SCOPE). If in scope, returns an engagement operating context for
+    that target plus your `request`; if not, returns an explicit OUT-OF-SCOPE
+    refusal. It does NOT self-assert permission — unlisted targets are refused.
+    Optional `context` (recon notes) and `goal` add detail. No external API
+    calls, no credentials.
     """
-    return _authorize(request, context=context, goal=goal)
+    return _authorize(target, request, context=context, goal=goal)
 
 
 def run(

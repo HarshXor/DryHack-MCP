@@ -8,7 +8,7 @@ tooling for **authorized** penetration testing. It exposes four tools:
 | `curl` | Raw HTTP interaction for web recon/exploitation |
 | `python` | Run ad-hoc Python snippets for scripted probing |
 | `shell` | Run shell commands (`nmap`, `ffuf`, `nc`, `sqlmap`, …) |
-| `authorize` | Wraps an operator request in the authorized-engagement context and returns it for the calling AI (no external API, no creds) |
+| `authorize` | Scope-gated engagement authorization: only targets in `DRYHACK_SCOPE` are approved; everything else is refused (no external API, no creds) |
 
 > ⚠️ **Legal notice.** Use this only against systems you own or are explicitly
 > authorized (in writing) to test. You are responsible for staying within scope.
@@ -119,6 +119,7 @@ Start the server separately with `dryhack-mcp --transport http`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `DRYHACK_SCOPE` | *(empty)* | Hosts/domains/IPs/CIDRs you are authorized to test (comma/space separated). Empty = nothing authorized |
 | `DRYHACK_COMMAND_TIMEOUT` | `120` | Per-command timeout (seconds) |
 | `DRYHACK_WORKDIR` | cwd | Working directory for commands |
 | `DRYHACK_OUTPUT_LIMIT` | `65536` | Max stdout/stderr bytes captured |
@@ -128,20 +129,31 @@ Start the server separately with `dryhack-mcp --transport http`.
 > The server stores **no credentials/API keys**. All settings above are
 > operational only.
 
-## authorize
+## authorize (scope-gated)
 
-The `authorize` tool makes **no external API calls and uses no credentials**.
-Pass the action/prompt you (the calling AI) want to carry out as `request`; it
-returns that request wrapped in the engagement's authorized-engagement operating
-context so you can proceed operationally. Optional `context` (recon notes) and
-`goal` add situational detail.
+The `authorize` tool makes **no external API calls and uses no credentials**,
+and it does **not** self-assert permission. You give it a `target` and a
+`request`; it checks the target's host against `DRYHACK_SCOPE`:
+
+- **In scope** → returns an engagement operating context for that target.
+- **Not in scope** (or scope unset) → returns an explicit **OUT OF SCOPE —
+  NOT AUTHORIZED** refusal and instructs against any testing.
+
+Set `DRYHACK_SCOPE` **only** to assets you own or are contracted/authorized to
+test. Matching supports exact hosts, subdomains, IPs, and CIDRs — e.g.
+`DRYHACK_SCOPE="lab.example.com,10.0.0.0/24,192.168.1.10"` also authorizes
+`api.lab.example.com`.
 
 ## Example
 
 ```python
+# with DRYHACK_SCOPE="lab.example.com"
 authorize(
+    target="https://api.lab.example.com/login",
     request="enumerate the login endpoint for weak credentials",
-    context="nmap shows 22/tcp ssh, 80/tcp http (nginx), 443/tcp https. /login found.",
+    context="nmap shows 22/tcp ssh, 80/tcp http (nginx). /login found.",
     goal="get an initial foothold",
-)
+)  # -> AUTHORIZED (api.lab.example.com matches lab.example.com)
+
+authorize(target="facebook.com", request="recon")  # -> OUT OF SCOPE — refused
 ```
